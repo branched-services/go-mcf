@@ -1,0 +1,26 @@
+{
+  "id": "solver-state-tree-init",
+  "description": "Build the initial spanning tree bookkeeping (parent, thread, succNum, lastSucc, arcDir, pi) on a state already populated with arcs; define the public initState wrapper.",
+  "category": "feat",
+  "priority": 4,
+  "prerequisites": ["solver-state-arcs"],
+  "commit": "feat: add initial spanning tree construction and initState entry point",
+  "steps": [
+    "Extend solver_state.go with `func initTree(s *state)`. Must be called after populateArcs.",
+    "Build the star tree rooted at s.root: parent[s.root] = -1, pred[s.root] = -1. For each real node i in [0, s.n): parent[i] = s.root, pred[i] = s.arcCount + i. arcDir for artificials was set in populateArcs.",
+    "Build thread preorder: thread[s.root] = 0; for i in [0, s.n-1): thread[i] = i+1; thread[s.n-1] = s.root. revThread is the inverse permutation. succNum[s.root] = s.n + 1; succNum[i] = 1 for each real i. lastSucc[s.root] = s.n - 1; lastSucc[i] = i for each real i.",
+    "Initialize potentials so every artificial arc has reduced cost 0: pi[s.root] = 0. For each real i: if arcDir[s.arcCount+i] == dirDown (child->parent, i.e. source=i, target=root): reduced cost = arcCost - pi[i] + pi[root] = 0 => pi[i] = arcCost[s.arcCount+i]. If dirUp (root->i): reduced cost = arcCost - pi[root] + pi[i] = 0 => pi[i] = -arcCost[s.arcCount+i].",
+    "Define the public entry point `func initState(arcs []Arc, n, src, sink int) (*state, error)` that composes: s := newEmptyState(n, len(arcs)); if err := populateArcs(s, arcs, src, sink); err != nil { return nil, err }; initTree(s); return s, nil.",
+    "In solver_state_test.go add `TestInitTree_Structure`: build a 3-node graph state via newEmptyState + populateArcs, call initTree; assert parent array, thread is a valid preorder permutation (every index in [0, totalNodes) appears exactly once), succNum[root]==totalNodes==4, and reducedCost(s.arcCount+i) == 0 for every artificial i.",
+    "Add `TestInitState_EndToEnd`: call initState on a 3-node graph; assert s != nil, err == nil, s.n==3, s.root==3, tree invariants as in TestInitTree_Structure.",
+    "Verify `go build ./...` and `go test ./...` pass."
+  ],
+  "acceptance_criteria": [
+    "solver_state.go defines `func initTree(s *state)` and `func initState(arcs []Arc, n, src, sink int) (*state, error)`.",
+    "After initState, thread pointers form a valid preorder permutation of [0, totalNodes).",
+    "After initState, every artificial arc has reducedCost == 0.",
+    "TestInitTree_Structure and TestInitState_EndToEnd pass.",
+    "`go build ./...` succeeds.",
+    "`go test ./...` passes."
+  ]
+}

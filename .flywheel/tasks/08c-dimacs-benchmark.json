@@ -1,0 +1,26 @@
+{
+  "id": "dimacs-benchmark",
+  "description": "Add a DIMACS benchmark that reads instances from a directory specified via env var (no fixtures committed).",
+  "category": "test",
+  "priority": 7,
+  "prerequisites": ["solver-main-loop", "dimacs-parser"],
+  "commit": "test: add DIMACS benchmark skeleton reading from env-var path",
+  "steps": [
+    "Create benchmark_test.go with `package mcf` importing `os`, `path/filepath`, `testing`.",
+    "Define `var dimacsInstances = []struct{ Name string; KnownOptimum int64 }{{\"netgen_8_10a.min\", 0}, {\"gridgen_sr_8a.min\", 0}}`. KnownOptimum=0 means 'not known; smoke test only' — do NOT fabricate values; a downstream operator fills these in from Kovacs 2015.",
+    "`func dimacsDir(tb testing.TB) string`: read os.Getenv(\"GO_MCF_DIMACS_DIR\"); if empty call tb.Skip with a message including the LEMON wiki URL.",
+    "`func BenchmarkDIMACS(b *testing.B)`: call dimacsDir(b). For each entry run `b.Run(name, ...)`: open the file under `filepath.Join(dir, name)` (missing file → b.Skipf), ParseDIMACS once outside the timed loop, b.ResetTimer, then for i := 0; i < b.N; i++ call Solve.",
+    "`func TestDIMACSCorrectness(t *testing.T)`: call dimacsDir(t). For each entry with KnownOptimum != 0 assert Result.TotalCost == KnownOptimum; otherwise (KnownOptimum==0) smoke-test: assert err == nil and Result.Feasible == true.",
+    "Verify without GO_MCF_DIMACS_DIR set: `go test ./...` passes with skip lines; `go test -bench=. -benchtime=1x ./...` exits 0.",
+    "Verify `go build ./...` succeeds."
+  ],
+  "acceptance_criteria": [
+    "benchmark_test.go defines BenchmarkDIMACS and TestDIMACSCorrectness.",
+    "Both skip cleanly when GO_MCF_DIMACS_DIR is unset.",
+    "No DIMACS fixture files are committed.",
+    "dimacsInstances entries use KnownOptimum=0 for unknown optima (no fabricated values).",
+    "`go build ./...` succeeds.",
+    "`go test ./...` passes (with skip lines when env var unset).",
+    "`go test -bench=. -benchtime=1x ./...` exits 0 with skip messages when env var unset."
+  ]
+}

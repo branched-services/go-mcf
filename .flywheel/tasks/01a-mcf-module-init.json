@@ -1,0 +1,22 @@
+{
+  "id": "mcf-module-init",
+  "description": "Initialize the Go module, LICENSE (Boost 1.0 + LEMON attribution), and README with DIMACS dataset note.",
+  "category": "chore",
+  "priority": 1,
+  "prerequisites": [],
+  "commit": "chore: initialize go-mcf module, license, and readme",
+  "steps": [
+    "Create go.mod at repo root: `module github.com/branched-services/go-mcf`, `go 1.22`, require `github.com/holiman/uint256` at latest v1.3.x.",
+    "Add a real package doc file `doc.go` containing only `// Package mcf is a Go port of LEMON's Network Simplex minimum-cost-flow algorithm.` followed by `package mcf`. Run `go mod tidy` to populate go.sum.",
+    "Create LICENSE containing the full Boost Software License 1.0 text (https://www.boost.org/LICENSE_1_0.txt), then a blank line, then: 'This package is a port of the Network Simplex implementation from the LEMON graph library (https://lemon.cs.elte.hu), copyright (c) 2003-2018 by the Egervary Research Group on Combinatorial Optimization. LEMON is distributed under the Boost Software License 1.0.'",
+    "Create README.md with: one-paragraph description (standalone Go port of LEMON 1.3.1 primal Network Simplex for min-cost flow), install snippet `go get github.com/branched-services/go-mcf`, and a 'Benchmarks' section stating DIMACS instances are not included; users must download the LEMON dataset from http://lemon.cs.elte.hu/trac/lemon/wiki/MinCostFlowData and point `GO_MCF_DIMACS_DIR` at the directory.",
+    "Verify `go build ./...` and `go mod tidy` succeed."
+  ],
+  "acceptance_criteria": [
+    "go.mod declares module `github.com/branched-services/go-mcf`, go 1.22, and requires `github.com/holiman/uint256` at v1.3.x.",
+    "LICENSE contains 'Boost Software License - Version 1.0' and the LEMON attribution paragraph.",
+    "README.md contains the string 'GO_MCF_DIMACS_DIR' and the LEMON wiki URL.",
+    "`go build ./...` succeeds.",
+    "`go mod tidy` exits 0."
+  ]
+}

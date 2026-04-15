@@ -1,0 +1,28 @@
+{
+  "id": "solver-augment",
+  "description": "Implement augmentFlow: push delta around the pivot cycle in-place using uint256 Add/Sub, accumulating totalCost via saturating int64 helpers.",
+  "category": "feat",
+  "priority": 3,
+  "prerequisites": ["solver-int64-sat", "solver-state-structs"],
+  "commit": "feat: add in-place uint256 flow augmentation around pivot cycle",
+  "steps": [
+    "Create solver_augment.go with `package mcf` importing `github.com/holiman/uint256` and `math`.",
+    "Implement `func (s *state) augmentFlow(entering, join int, delta *uint256.Int)`. If delta.IsZero() return immediately.",
+    "Apply delta to the entering arc: if arcState[entering]==stateLower call `s.arcFlow[entering].Add(s.arcFlow[entering], delta)`; if stateUpper call `s.arcFlow[entering].Sub(s.arcFlow[entering], delta)`. Reuse s.scratch only if a temporary is required — do NOT allocate new *uint256.Int inside the traversal loop.",
+    "Walk u-side from s.arcSource[entering] up to join via pred[], applying Add or Sub to each tree arc per the same orientation convention used by solver-find-cycle (forward traversal = Add, reverse = Sub). Walk v-side with opposite orientation.",
+    "Best-effort cost accumulation: if delta.IsUint64(), let d := int64(delta.Uint64()) (assuming d does not exceed MaxInt64 — if delta.Uint64() > MaxInt64 skip cost accumulation). For each touched arc, computed signed cost step = mulSat(d, arcCost[a]) with forward/backward sign, then `s.totalCost = addSat(s.totalCost, signedStep)`.",
+    "Create solver_augment_test.go with `TestAugmentFlow_ForwardCycle`: construct a state with a 3-arc cycle (entering + two tree arcs), known initial flows, delta=uint256.NewInt(3). Call augmentFlow; assert each arc's flow equals the expected value. Then call it again with matching reverse-delta to return to original; wrap the two calls in `testing.AllocsPerRun(100, func(){...})` and assert the reported allocs is 0 (document and allow <= 1 only if unavoidable due to scratch construction).",
+    "Add `TestAugmentFlow_ZeroDelta`: flows and totalCost unchanged after calling with delta=NewInt(0).",
+    "Add `TestAugmentFlow_CostAccumulation`: known costs + known delta; assert s.totalCost matches the hand-computed value.",
+    "Verify `go build ./...` and `go test ./...` pass."
+  ],
+  "acceptance_criteria": [
+    "solver_augment.go defines `func (s *state) augmentFlow(entering, join int, delta *uint256.Int)`.",
+    "All per-arc uint256 arithmetic is in-place on arcFlow[a]; no `new(uint256.Int)` or `uint256.NewInt` inside the per-arc loop.",
+    "Cost accumulation uses `addSat` / `mulSat` from solver-int64-sat.",
+    "TestAugmentFlow_ForwardCycle asserts zero (or documented-minimal) heap allocations.",
+    "TestAugmentFlow_ZeroDelta and TestAugmentFlow_CostAccumulation pass.",
+    "`go build ./...` succeeds.",
+    "`go test ./...` passes."
+  ]
+}

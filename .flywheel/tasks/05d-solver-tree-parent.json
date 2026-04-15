@@ -1,0 +1,24 @@
+{
+  "id": "solver-tree-parent",
+  "description": "Implement reverseParentChain: swap entering arc into the tree and reverse parent/pred/arcDir along the affected chain. Sets arcState for entering and leaving.",
+  "category": "feat",
+  "priority": 4,
+  "prerequisites": ["solver-tree-flip"],
+  "commit": "feat: add parent-chain reversal for pivot tree restructure",
+  "steps": [
+    "Create solver_tree_parent.go with `package mcf`.",
+    "Implement `func (s *state) reverseParentChain(entering, leaving, join, leavingSide int)`. Assume entering != leaving (degenerate case is handled by the later updateTree wrapper).",
+    "Set arcState[entering] = stateTree. Determine leaving arc's new state: if arcFlow[leaving].IsZero() set stateLower, else if arcFlow[leaving].Cmp(arcCap[leaving])==0 set stateUpper, else document the anomaly and default to stateLower.",
+    "Identify the subtree-root of the moved side: if leavingSide == 0 it is arcSource[entering]; else arcTarget[entering]. Identify the `pinEndpoint` on the stay-side: the opposite endpoint of the entering arc.",
+    "Reverse the parent/pred/arcDir chain from the subtree-root up to what was the child-end of the leaving arc: walk using pred[], and at each step record the next step's parent/pred/arcDir before overwriting. After reversal, the subtree-root's parent becomes `pinEndpoint`, pred[subtreeRoot] = entering, and arcDir[entering] is set so that arcSource/arcTarget of the entering arc agree with child->parent orientation (dirDown if arcSource[entering]==subtreeRoot, dirUp otherwise).",
+    "Create solver_tree_parent_test.go with `TestReverseParentChain_Simple`: hand-crafted 5-node spanning tree where a known pivot reverses a chain of length 2. Configure arcFlow[leaving] = arcCap[leaving] (upper) so the new state should be stateUpper. Call reverseParentChain; assert parent/pred for each node on the chain matches the expected post-pivot values, arcDir[entering] has the expected sign, arcState[entering]==stateTree, arcState[leaving]==stateUpper.",
+    "Verify `go build ./...` and `go test ./...` pass."
+  ],
+  "acceptance_criteria": [
+    "solver_tree_parent.go defines `func (s *state) reverseParentChain(entering, leaving, join, leavingSide int)`.",
+    "After the call: arcState[entering]==stateTree, arcState[leaving] is stateLower or stateUpper per its flow, parent/pred/arcDir along the moved chain are reversed.",
+    "TestReverseParentChain_Simple passes.",
+    "`go build ./...` succeeds.",
+    "`go test ./...` passes."
+  ]
+}

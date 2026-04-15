@@ -1,0 +1,13 @@
+{
+  "task_id": "solver-potentials",
+  "run_id": "run-20260415-124831-4545",
+  "status": "pending",
+  "base_ref": "main",
+  "current_step": 0,
+  "timestamps": {
+    "created_at": "2026-04-15T12:48:31.769990719-04:00"
+  },
+  "version": 0,
+  "retries": 0,
+  "resolve_attempts": 0
+}

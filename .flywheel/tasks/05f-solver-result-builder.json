@@ -1,0 +1,27 @@
+{
+  "id": "solver-result-builder",
+  "description": "Build the public Result from a solved state: feasibility check on artificial arcs, TotalFlow/TotalCost population, flow copy-back to caller's arcs slice.",
+  "category": "feat",
+  "priority": 4,
+  "prerequisites": ["solver-state-arcs"],
+  "commit": "feat: add result builder with feasibility check and flow copy-back",
+  "steps": [
+    "Create solver_result.go with `package mcf` importing `github.com/holiman/uint256`.",
+    "Implement `func buildResult(s *state, arcs []Arc, src, sink int) (Result, bool)`. The bool is `feasible`.",
+    "Feasibility: iterate artificial arcs at indices [s.arcCount, s.totalArcs); if any has arcFlow[idx].Sign() > 0, set feasible = false. Otherwise feasible = true.",
+    "Copy flows back onto caller's arcs: for i := range arcs { arcs[i].Flow = s.arcFlow[i] }.",
+    "Compute TotalFlow into a fresh `*uint256.Int`: iterate real arcs and accumulate arcFlow[i] where arcSource[i] == src, subtracting arcFlow[i] where arcTarget[i] == src. Use in-place uint256 Add/Sub on a local accumulator.",
+    "Return Result{TotalFlow: totalFlow, TotalCost: s.totalCost, Feasible: feasible} and the feasible bool.",
+    "Create solver_result_test.go with `TestBuildResult_Feasible`: construct a state literal populated with 2 real arcs (0->1 flow 5, 1->2 flow 5) and n=3 artificials all with flow 0. Call buildResult(s, arcs, 0, 2). Assert Result.Feasible==true, Result.TotalFlow.Uint64()==5, arcs[0].Flow and arcs[1].Flow point to the state's arcFlow entries.",
+    "Add `TestBuildResult_Infeasible`: same setup but set arcFlow of one artificial to 3. Assert Result.Feasible==false.",
+    "Verify `go build ./...` and `go test ./...` pass."
+  ],
+  "acceptance_criteria": [
+    "solver_result.go defines `func buildResult(s *state, arcs []Arc, src, sink int) (Result, bool)`.",
+    "Feasibility is determined by scanning artificial arcs for any positive flow.",
+    "TotalFlow computation uses in-place uint256 arithmetic.",
+    "TestBuildResult_Feasible and TestBuildResult_Infeasible pass.",
+    "`go build ./...` succeeds.",
+    "`go test ./...` passes."
+  ]
+}

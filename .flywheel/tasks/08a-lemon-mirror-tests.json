@@ -1,0 +1,26 @@
+{
+  "id": "lemon-mirror-tests",
+  "description": "Port a representative subset of LEMON's min_cost_flow_test.cc correctness cases to Go.",
+  "category": "test",
+  "priority": 7,
+  "prerequisites": ["solver-main-loop"],
+  "commit": "test: port representative LEMON min_cost_flow_test.cc correctness cases",
+  "steps": [
+    "Create lemon_mirror_test.go with `package mcf` importing `errors`, `testing`, `github.com/holiman/uint256`.",
+    "`TestLEMON_KnownOptimal`: hand-built small graph (4-6 nodes) with documented optimal cost. Assert err==nil, Feasible==true, TotalCost == expected, then checkSolution.",
+    "`TestLEMON_FeasibleSupply`: supply reachable via multiple paths; assert Feasible==true and checkSolution.",
+    "`TestLEMON_Infeasible_CutSeparated`: src and sink in disjoint weakly-connected components. Assert errors.Is(err, ErrInfeasible).",
+    "`TestLEMON_ParallelArcs`: two nodes u,v with three parallel arcs caps [5,5,5] costs [1,2,3], flow demand 12. Assert arc-cost-1 saturates, arc-cost-2 saturates, arc-cost-3 carries 2; TotalCost == 21; checkSolution.",
+    "`TestLEMON_NegativeCostArcs`: graph with at least one negative-cost arc but no negative cycle, constructed so optimal necessarily uses it. Assert TotalCost matches hand-computed value; checkSolution.",
+    "`TestLEMON_ZeroSupply`: graph where source has only zero-capacity outgoing arcs. Assert TotalFlow == 0, Feasible==true, TotalCost == 0.",
+    "Verify `go build ./...` and `go test ./...` pass."
+  ],
+  "acceptance_criteria": [
+    "lemon_mirror_test.go defines the six tests listed above.",
+    "TestLEMON_Infeasible_CutSeparated uses errors.Is with ErrInfeasible.",
+    "TestLEMON_ParallelArcs asserts cost-ascending saturation order.",
+    "Every passing-solve test calls checkSolution.",
+    "`go build ./...` succeeds.",
+    "`go test ./...` passes."
+  ]
+}
