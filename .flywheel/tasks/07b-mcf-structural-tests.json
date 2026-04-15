@@ -1,0 +1,27 @@
+{
+  "id": "mcf-structural-tests",
+  "description": "Cover the structural patterns from the spec's Layer 3 — negative-cost cycles, parallel arcs, sparse multi-hop, single-unit flow, demand = max-flow, demand = max-flow+1, and large uint256 capacities.",
+  "category": "test",
+  "priority": 1,
+  "prerequisites": ["mcf-solve-entry-point", "mcf-check-solution-helper"],
+  "commit": "test: add Layer-3 structural correctness tests",
+  "steps": [
+    "Create structural_test.go in the repo root (SPDX BSL-1.0, package mcf).",
+    "Write TestStructural_NegativeCostCycleInOriginalGraph. Build a 4-node graph containing a cycle whose sum of costs is negative (e.g. nodes 0,1,2,3 with arcs 0->1 cost +10, 1->2 cost -20, 2->3 cost +5, 3->1 cost +3 forming cycle 1->2->3->1 with cost -12). source=0, sink=2, demand = a modest value. Assert Solve returns err == nil (this is the primary correctness guarantee of the port over SSP) and checkSolution passes. Assert TotalFlow == demand exactly. Comment that SSP would have required cycle-breaking here; Network Simplex handles it natively.",
+    "Write TestStructural_ParallelArcsSaturateLowerCostFirst. 2-node graph with three parallel arcs source=0 -> sink=1: arc A cost=1 cap=5, arc B cost=3 cap=5, arc C cost=7 cap=5, demand=12. Assert arc A.Flow == 5, B.Flow == 5, C.Flow == 2; TotalCost == 5*1 + 5*3 + 2*7 = 34.",
+    "Write TestStructural_SparseMultiHopGraph. 8-node path 0->1->2->...->7 with one arc per hop cap=10 cost=1, plus one extra arc 0->7 cap=3 cost=100 (expensive shortcut). demand=8. Assert the hop path saturates at 8 units, the shortcut carries 0, TotalCost == 8*7 == 56.",
+    "Write TestStructural_SingleUnitFlow. 3-node diamond 0->1 cost=2 cap=1, 0->2 cost=5 cap=1, 1->3 cost=1 cap=1, 2->3 cost=1 cap=1 (n=4, source=0, sink=3). demand=1. Assert the cheaper path (via 1) carries the single unit, TotalCost == 3.",
+    "Write TestStructural_DemandEqualsMaxFlow. 3-node graph with two disjoint paths 0->1->2 (each arc cap=3) and 0->2 directly (cap=2). source=0, sink=2, max-flow == 5. demand=5. Assert err == nil, checkSolution passes, TotalFlow == 5.",
+    "Write TestStructural_DemandExceedsMaxFlow. Same graph as above, demand = 6. Assert errors.Is(err, ErrInfeasible); assert the returned Result has nil or zero TotalFlow.",
+    "Write TestStructural_LargeUint256Capacity. 2-node graph with one arc cap = 2^200 (build via `new(uint256.Int).Lsh(uint256.NewInt(1), 200)`), cost = 1, demand = 2^150. Assert err == nil, arc.Flow equals demand exactly, checkSolution passes. TotalCost may overflow int64; if so, simply assert err == nil and the flow invariants — do NOT assert on TotalCost value.",
+    "Every test function calls checkSolution on success and uses `t.Helper()`-friendly assertions."
+  ],
+  "acceptance_criteria": [
+    "structural_test.go contains exactly seven test functions: TestStructural_NegativeCostCycleInOriginalGraph, TestStructural_ParallelArcsSaturateLowerCostFirst, TestStructural_SparseMultiHopGraph, TestStructural_SingleUnitFlow, TestStructural_DemandEqualsMaxFlow, TestStructural_DemandExceedsMaxFlow, TestStructural_LargeUint256Capacity.",
+    "Every success-path test invokes checkSolution.",
+    "TestStructural_DemandExceedsMaxFlow uses errors.Is(err, ErrInfeasible).",
+    "TestStructural_LargeUint256Capacity exercises uint256 values beyond uint64 range.",
+    "`go build ./...` and `go test ./...` succeed.",
+    "`go vet ./...` reports no issues."
+  ]
+}

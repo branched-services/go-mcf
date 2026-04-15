@@ -1,0 +1,27 @@
+{
+  "id": "mcf-pivot-flow-push",
+  "description": "Push the bottleneck flow around the cycle using in-place uint256 arithmetic on arc Flow pointers.",
+  "category": "feat",
+  "priority": 1,
+  "prerequisites": ["mcf-solver-state-struct", "mcf-leaving-arc-selection"],
+  "commit": "feat: add in-place uint256 pivot flow push",
+  "steps": [
+    "Create pivot.go in the repo root (SPDX BSL-1.0, package mcf).",
+    "Import `github.com/holiman/uint256`.",
+    "Implement `func (s *solverState) pushFlow(entering, joinNode int, bottleneck *uint256.Int)`. Pushes `bottleneck` units around the cycle induced by the entering arc, using s.flow[a].Add / s.flow[a].Sub (in-place, no allocation). If s.state[entering] == stateLower, flow direction along entering is forward (source[entering] -> target[entering]); if stateUpper, backward.",
+    "Walk from u := s.source[entering] up to joinNode via s.parent/s.predArc. For each tree arc a on this walk: if the arc's cycle-flow direction agrees with source-to-target on a (determined by s.dirNode[currentNode]), call `s.flow[a].Sub(s.flow[a], bottleneck)`; otherwise `s.flow[a].Add(s.flow[a], bottleneck)`. Mirror the walk from v := s.target[entering] up to joinNode with flipped sign convention.",
+    "Finally update the entering arc itself: if state == stateLower, Add bottleneck; if state == stateUpper, Sub bottleneck.",
+    "If bottleneck.IsZero() (degenerate pivot), still walk the cycle to maintain structural correctness but skip the actual Add/Sub calls (no-op); this is the degenerate-pivot path the spec describes — state flip is handled by the tree-update task, not here.",
+    "After the push, assert (via a package-private debug build tag guard or simply an invariant comment, not a runtime check) that every arc on the cycle satisfies 0 <= flow <= capacity.",
+    "No heap allocations. s.flow entries are pre-allocated *uint256.Int; only their bits change.",
+    "Create pivot_test.go. Construct a solverState with a known 3-arc cycle and hand-set flow/capacity. TestPushFlowInPlace: before push, flow = [0, 0, 0] (cycle arcs); bottleneck = 4; after pushFlow, flow along cycle matches expected signs ([4, 4, -4] semantically; assert each arc's flow Uint64). TestPushFlowZeroBottleneckIsNoop: call pushFlow with bottleneck = uint256.NewInt(0); assert every arc's flow unchanged. TestPushFlowLargeUint256: bottleneck = value exceeding uint64 range (e.g. `uint256.NewInt(0).Lsh(uint256.NewInt(1), 100)` — 2^100); after push, flow values compare correctly via Cmp."
+  ],
+  "acceptance_criteria": [
+    "pushFlow mutates s.flow[*] in place using Add/Sub only; no `new(uint256.Int)` calls.",
+    "Zero-bottleneck pushes are a no-op on flow values.",
+    "Large uint256 bottleneck is correctly applied end-to-end.",
+    "All three tests pass.",
+    "`go build ./...` and `go test ./...` succeed.",
+    "`go vet ./...` reports no issues."
+  ]
+}

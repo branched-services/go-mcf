@@ -1,0 +1,26 @@
+{
+  "id": "mcf-module-scaffold",
+  "description": "Initialize the Go module, add the uint256 dependency, and drop in Boost-1.0 licensing and attribution files.",
+  "category": "chore",
+  "priority": 1,
+  "prerequisites": [],
+  "commit": "chore: scaffold go-mcf module with Boost license and uint256 dependency",
+  "steps": [
+    "Run `go mod init github.com/branched-services/go-mcf` at the repo root.",
+    "Run `go get github.com/holiman/uint256@latest` then `go mod tidy` so the dependency is recorded in go.mod and go.sum.",
+    "Create LICENSE containing the full Boost Software License 1.0 text verbatim (the exact text published at https://www.boost.org/LICENSE_1_0.txt).",
+    "Create NOTICE with the LEMON attribution: `This product includes software developed by the Egervary Research Group on Combinatorial Optimization (https://lemon.cs.elte.hu), copyright (c) 2003-2018. LEMON is distributed under the Boost Software License 1.0. See LICENSE for the full license text.`",
+    "Create README.md with a brief (under 20 lines) description that opens with: this is a Go port of LEMON 1.3.1's primal Network Simplex min-cost-flow solver; scope is DeFi-oriented with *uint256.Int flow/capacity and int64 costs; general int64-flow users should use a different library.",
+    "Create doc.go in the repo root with `// SPDX-License-Identifier: BSL-1.0` as the first line, followed by a package doc comment for `package mcf` summarizing the public API in one paragraph.",
+    "Verify `go build ./...` succeeds on the empty module."
+  ],
+  "acceptance_criteria": [
+    "go.mod declares module path `github.com/branched-services/go-mcf` and requires `github.com/holiman/uint256`.",
+    "LICENSE contains the full Boost Software License 1.0 verbatim.",
+    "NOTICE exists and credits LEMON / Egervary Research Group.",
+    "README.md opens by declaring DeFi/uint256 scope.",
+    "doc.go declares `package mcf` and begins with the SPDX BSL-1.0 header.",
+    "`go build ./...` succeeds.",
+    "`go mod tidy` is a no-op (module is already tidy)."
+  ]
+}

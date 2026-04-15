@@ -1,0 +1,25 @@
+{
+  "id": "mcf-solver-state-struct",
+  "description": "Define the internal solverState struct (tree arrays, arc columns, potentials, uint256 scratch buffers) and its constructor.",
+  "category": "feat",
+  "priority": 1,
+  "prerequisites": ["mcf-module-scaffold"],
+  "commit": "feat: add internal solverState struct and allocator",
+  "steps": [
+    "Create state.go in the repo root with SPDX BSL-1.0 header and `package mcf`.",
+    "Import `github.com/holiman/uint256`.",
+    "Declare constants for arc state: `const ( stateLower int8 = -1; stateTree int8 = 0; stateUpper int8 = 1 )`. Declare direction constants `const ( dirDown int8 = -1; dirUp int8 = 1 )`.",
+    "Define unexported struct `solverState` with fields matching LEMON's layout exactly. Total-arc count `m` includes artificial arcs; real arcs are indices [0, mReal), artificial arcs are [mReal, m). Fields: `n, mReal, m int`; `root int` (the artificial root node index, set to n); arc columns `source, target []int` (length m), `cost []int64` (length m), `capacity, flow []*uint256.Int` (length m); node columns `supply []int64` (length n+1), `pi []int64` (length n+1, node potentials), `parent []int` (length n+1), `predArc []int` (length n+1), `thread []int` (length n+1), `revThread []int` (length n+1), `succNum []int` (length n+1, subtree size), `lastSucc []int` (length n+1), `dirNode []int8` (length n+1, tree-arc direction relative to parent); arc state `state []int8` (length m); pricing cursor `nextArc int`; block size `blockSize int`; uint256 scratch buffers `bottleneck, delta *uint256.Int` (pre-allocated, reused per pivot to keep the hot path alloc-free).",
+    "Implement unexported `func newSolverState(n, mReal int) *solverState`. It allocates m = mReal + n (one artificial arc per real node), allocates every slice to its documented length, and pre-allocates `bottleneck` and `delta` as `new(uint256.Int)`. `flow[i]` is initialized to `new(uint256.Int)` (zero) for every arc index (both real and artificial) so the hot path can call `Flow.Add`/`Flow.Sub` without nil checks. `capacity[i]` is left nil; the initial-tree-setup task will populate it.",
+    "Add a comment block near the struct naming each field and citing LEMON's corresponding member so future maintainers recognize the mapping.",
+    "Create state_test.go: TestNewSolverStateAllocations asserts that for n=5, mReal=7 the returned state has m=12, every named slice has the expected length, every flow[i] is non-nil and equal to zero (compare via `IsZero()`), root == 5, and bottleneck/delta are non-nil."
+  ],
+  "acceptance_criteria": [
+    "state.go declares solverState with exactly the fields listed and the listed constants.",
+    "newSolverState(n, mReal) returns a pointer with all documented slices allocated and flow/bottleneck/delta pre-initialized.",
+    "No per-arc allocations happen after construction (slice capacities are fixed by the constructor).",
+    "TestNewSolverStateAllocations passes.",
+    "`go build ./...` and `go test ./...` succeed.",
+    "`go vet ./...` reports no issues."
+  ]
+}

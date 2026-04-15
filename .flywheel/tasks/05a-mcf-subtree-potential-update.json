@@ -1,0 +1,21 @@
+{
+  "id": "mcf-subtree-potential-update",
+  "description": "Implement the selective subtree potential update applied after each pivot (O(subtree size), int64).",
+  "category": "feat",
+  "priority": 1,
+  "prerequisites": ["mcf-solver-state-struct"],
+  "commit": "feat: add selective subtree potential update",
+  "steps": [
+    "Create potentials.go in the repo root (SPDX BSL-1.0, package mcf).",
+    "Implement `func (s *solverState) updatePotentials(subtreeRoot int, delta int64)`. Walks the portion of the thread starting at `subtreeRoot` up through `s.lastSucc[subtreeRoot]` inclusive, adding `delta` to `s.pi[node]` for each. Traversal: `node := subtreeRoot; stop := s.thread[s.lastSucc[subtreeRoot]]; for node != stop { s.pi[node] += delta; node = s.thread[node] }`. Document inline that the contiguous thread-range [subtreeRoot .. lastSucc[subtreeRoot]] is exactly the subtree in post-order.",
+    "No allocations, pure int64 arithmetic.",
+    "Create potentials_test.go. Build a solverState by hand with n=5, root=5, a tree where node 1 is the root of a 3-node subtree {1, 2, 3} and nodes 0, 4 sit outside that subtree. Set thread/lastSucc consistently (thread threads nodes in post-order: for example thread = [4, 2, 3, 1, 0, ...], lastSucc[1] = 1 after traversal order). Populate pi = [10, 20, 30, 40, 50, 0]. Call updatePotentials(1, +7). Assert pi[1], pi[2], pi[3] all increased by 7 (now 27, 37, 47); pi[0] and pi[4] unchanged; pi[root] unchanged. Add TestSubtreeUpdateOnSingletonSubtree where subtreeRoot == lastSucc[subtreeRoot] (single-node subtree) and exactly one pi entry changes."
+  ],
+  "acceptance_criteria": [
+    "updatePotentials mutates pi entries only within the contiguous thread-range [subtreeRoot .. lastSucc[subtreeRoot]].",
+    "Both tests pass.",
+    "No heap allocations.",
+    "`go build ./...` and `go test ./...` succeed.",
+    "`go vet ./...` reports no issues."
+  ]
+}

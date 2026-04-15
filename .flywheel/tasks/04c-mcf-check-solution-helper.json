@@ -1,0 +1,26 @@
+{
+  "id": "mcf-check-solution-helper",
+  "description": "Implement the shared test helper that verifies flow conservation, capacity feasibility, optimality certificate, demand satisfaction, and cost consistency on a Solve result.",
+  "category": "test",
+  "priority": 1,
+  "prerequisites": ["mcf-arc-result-types", "mcf-reduced-cost"],
+  "commit": "test: add shared checkSolution invariant helper",
+  "steps": [
+    "Create checksolution_test.go in the repo root (SPDX BSL-1.0, package mcf).",
+    "Import `math/big`, `testing`, `github.com/holiman/uint256`.",
+    "Implement `func checkSolution(t *testing.T, arcs []Arc, n, source, sink int, demand *uint256.Int, res Result)`. The helper runs every assertion; it does not return early after the first failure. Use `t.Helper()` and `t.Errorf` (not Fatal) so every violated invariant is reported.",
+    "Assertions: (1) Flow conservation. For every node v in [0,n) except source and sink, compute inflow := sum of arc.Flow for arcs with To==v, outflow := sum of arc.Flow for arcs with From==v (using big.Int or uint256 addition); assert inflow.Eq(outflow). For source: outflow - inflow == demand. For sink: inflow - outflow == demand. (2) Capacity feasibility. For every arc: arc.Flow must be non-nil and arc.Flow.Cmp(arc.Capacity) <= 0. (3) Demand satisfied. res.TotalFlow must be non-nil and res.TotalFlow.Eq(demand). (4) Cost consistency. Compute expectedCost using big.Int accumulation of `arc.Cost * arc.Flow` (treating arc.Flow as its big.Int value). If the expected sum fits in int64, assert res.TotalCost == expectedCost.Int64(); if it does not fit, skip (best-effort per spec). Use a helper to detect overflow via `big.Int.IsInt64()`. (5) Optimality certificate. This one requires knowledge of final pi and final state; since the public Result does not expose them, structure checkSolution to do every check that does not need pi, and document in a top-of-file comment that the optimality certificate is exercised by per-instance LEMON-ported expected-cost assertions (the ported tests provide externally-verified optima).",
+    "Add an unexported helper `func arcFlowBig(a Arc) *big.Int` that returns a *big.Int with the value of a.Flow (use a.Flow.ToBig()).",
+    "Create checksolution_helper_test.go with a TestCheckSolutionHelperAcceptsValidInstance: construct a trivial 2-node graph with one arc source=0 sink=1 cap=10 cost=3 flow=5 and Result{TotalFlow: 5, TotalCost: 15}; call checkSolution inside a subtest; assert the subtest does not fail by using `t.Run` and inspecting that no Errorf was called (simplest approach: just call checkSolution and let the test pass via absence of failure). Add TestCheckSolutionHelperFlagsCapacityViolation: arc.Flow = 20 > capacity = 10; use a recording *testing.T wrapper OR use `t.Run` with a helper that reports whether any sub-assertion failed. Simplest: run the check inside a `t.Run` subtest and assert the subtest's `failed` state via `t.Run`'s bool return value.",
+    "Note in a file-top comment: checkSolution is exported-to-tests only (package-private, underscore_test.go file) — callers in lemon_test.go, structural_test.go, dimacs_bench_test.go all use it."
+  ],
+  "acceptance_criteria": [
+    "checkSolution runs all listed invariant checks without early-return and reports each violation via t.Errorf.",
+    "Flow conservation uses exact big-integer arithmetic; no int64 truncation.",
+    "Cost consistency correctly skips the check when the big-integer cost exceeds int64 range.",
+    "TestCheckSolutionHelperAcceptsValidInstance passes.",
+    "TestCheckSolutionHelperFlagsCapacityViolation demonstrates the helper flags a capacity violation (the subtest returns false from t.Run).",
+    "`go build ./...` and `go test ./...` succeed.",
+    "`go vet ./...` reports no issues."
+  ]
+}

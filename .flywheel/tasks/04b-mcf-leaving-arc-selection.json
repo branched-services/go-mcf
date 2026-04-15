@@ -1,0 +1,26 @@
+{
+  "id": "mcf-leaving-arc-selection",
+  "description": "Walk the cycle induced by the entering arc to select the bottleneck leaving arc with LEMON's strongly-feasible tie-breaking.",
+  "category": "feat",
+  "priority": 1,
+  "prerequisites": ["mcf-arc-result-types", "mcf-solver-state-struct", "mcf-join-node-lca"],
+  "commit": "feat: add leaving-arc selection with strongly-feasible-tree tie-breaking",
+  "steps": [
+    "Create leaving.go in the repo root (SPDX BSL-1.0, package mcf).",
+    "Import `github.com/holiman/uint256`.",
+    "Implement `func (s *solverState) findLeavingArc(entering int) (leaving int, bottleneck *uint256.Int, deltaDirFirst bool)`. `deltaDirFirst` is true iff the bottleneck candidate was found on the 'first' (source-side) walk from entering.source to joinNode, false if on the 'second' (target-side) walk. Callers need this to sign flow deltas correctly in the pivot step.",
+    "Algorithm: let u = s.source[entering], v = s.target[entering], j = s.findJoinNode(u, v). The entering arc's residual, at the moment it enters, depends on its state: if stateLower, it is pushing flow *forward* (u->v) so residual_entering = s.capacity[entering] - s.flow[entering]; if stateUpper, it is pushing *backward* (v->u) so residual_entering = s.flow[entering]. Initialize bottleneck := residual_entering and leaving := entering and deltaDirFirst := true (entering arc is its own candidate tie). Store these into s.bottleneck scratch buffer (use `s.bottleneck.Set(residual_entering)`).",
+    "Walk from u up to j via s.parent/s.predArc: for each tree arc a on that path, compute its residual *in the direction of cycle flow* — if a is oriented with the cycle (s.dirNode[current] == dirUp for the forward-flow side) residual is s.capacity[a]-s.flow[a], otherwise s.flow[a]. Strict-less-than updates `leaving`, `bottleneck`, `deltaDirFirst = true`; equality does NOT update (LEMON picks the arc closer to the join node on the side opposite the entering arc's orientation — documented below).",
+    "Walk from v up to j similarly. On this walk the sign convention flips: residual in cycle direction is s.flow[a] when dirUp, s.capacity[a]-s.flow[a] when dirDown. Strict-less-than updates leaving/bottleneck/deltaDirFirst=false. On ties with the current bottleneck, *this* walk's candidate replaces the running choice — that is the strongly-feasible-tree tie-break: when bottlenecks tie, pick the arc on the side opposite the entering arc's forward direction, which is the second walk here. Add a comment block (at least 8 lines) stating: the tie-break is NOT optional; it is the termination proof for degenerate pivots; Bland's rule alone is insufficient; future maintainers must not delete this as 'redundant'.",
+    "Return `(leaving, s.bottleneck, deltaDirFirst)`. The caller treats s.bottleneck as read-only until the next findLeavingArc call. Do not allocate; only mutate the pre-allocated s.bottleneck buffer via Set().",
+    "Create leaving_test.go. Build a solverState by hand representing a tiny tree where the entering arc's cycle is known. TestLeavingArcPicksMinResidual: 3-node triangle with entering arc residual 10 and two tree-arc residuals 4 and 6; assert leaving is the arc with residual 4 and bottleneck.Uint64()==4. TestLeavingArcTieBreakPicksSecondWalk: construct a case where entering residual == first-walk arc residual == second-walk arc residual, all equal 5; assert the returned leaving is the second-walk arc (deltaDirFirst==false). TestLeavingArcEnteringItselfWinsWhenMin: construct a case where entering residual is strictly smaller; assert leaving==entering and deltaDirFirst==true."
+  ],
+  "acceptance_criteria": [
+    "findLeavingArc returns the minimum-residual arc on the cycle, with ties broken toward the side opposite the entering arc's orientation.",
+    "The returned bottleneck pointer is s.bottleneck (the pre-allocated scratch buffer), and no allocations occur in the hot path.",
+    "Code comments state explicitly that the tie-break implements the strongly-feasible-tree invariant and must not be removed.",
+    "All three tests pass.",
+    "`go build ./...` and `go test ./...` succeed.",
+    "`go vet ./...` reports no issues."
+  ]
+}

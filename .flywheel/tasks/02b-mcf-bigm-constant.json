@@ -1,0 +1,23 @@
+{
+  "id": "mcf-bigm-constant",
+  "description": "Implement the Big-M computation and arc-cost bound check used for overflow-safe reduced-cost arithmetic.",
+  "category": "feat",
+  "priority": 1,
+  "prerequisites": ["mcf-module-scaffold"],
+  "commit": "feat: add Big-M computation and arc-cost overflow precondition check",
+  "steps": [
+    "Create bigm.go in the repo root with `// SPDX-License-Identifier: BSL-1.0` as line 1 and `package mcf`.",
+    "Implement unexported `func bigM(n int) int64` returning `math.MaxInt64 / (8 * int64(n+1))`. Add a comment explaining: the `(n+1)` factor bounds potential accumulation along the longest tree path; the `/8` factor leaves headroom for reduced-cost subtraction. Used as the cost of artificial arcs so they strictly dominate any real arc's reduced cost unless the problem is infeasible.",
+    "Implement unexported `func arcCostWithinBound(cost int64, n int) bool` returning true iff `abs(cost) * int64(n+1) < math.MaxInt64 / 8`. Use a multiplication guard (compute absCost as int64 of the absolute value, then check `absCost > (math.MaxInt64/8) / int64(n+1)` and invert) to avoid the bound check itself overflowing. Document inline that this is precisely the precondition stated in the spec.",
+    "Assume `n >= 1`; callers perform the broader `n >= 2` check elsewhere. Do not panic.",
+    "Create bigm_test.go with: (a) TestBigMMonotone asserts bigM(2) > bigM(1000) > 0; (b) TestArcCostBoundAccepts: for n=100, cost=1_000_000 is within bound; (c) TestArcCostBoundRejects: cost = math.MaxInt64 is rejected; (d) TestBigMDominatesRealCost: for n=1000 and any cost c with `arcCostWithinBound(c, n)`, assert `int64(n+1)*abs(c) < bigM(n)` (this is the invariant the precondition guarantees)."
+  ],
+  "acceptance_criteria": [
+    "bigm.go and bigm_test.go compile with the SPDX header.",
+    "`bigM(n)` returns `math.MaxInt64 / (8 * (n+1))`.",
+    "`arcCostWithinBound` does not itself overflow on any int64 input.",
+    "All four tests in bigm_test.go pass.",
+    "`go build ./...` and `go test ./...` succeed.",
+    "`go vet ./...` reports no issues."
+  ]
+}

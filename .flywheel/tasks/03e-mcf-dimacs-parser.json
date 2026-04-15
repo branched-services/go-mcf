@@ -1,0 +1,29 @@
+{
+  "id": "mcf-dimacs-parser",
+  "description": "Parse the DIMACS min-cost-flow format into an in-memory graph suitable for feeding Solve.",
+  "category": "feat",
+  "priority": 1,
+  "prerequisites": ["mcf-arc-result-types"],
+  "commit": "feat: add DIMACS min-cost-flow test parser",
+  "steps": [
+    "Create dimacs_test.go in the repo root (SPDX BSL-1.0, package mcf). This is a test-only file so the parser does not become part of the public API.",
+    "Import `bufio`, `fmt`, `io`, `os`, `strconv`, `strings`, `testing`, `github.com/holiman/uint256`.",
+    "Define unexported type: `type dimacsProblem struct { N int; Source, Sink int; Demand *uint256.Int; Arcs []Arc }`.",
+    "Implement `func parseDIMACSMinCostFlow(r io.Reader) (*dimacsProblem, error)`. Accept the standard DIMACS MCF syntax: `c` lines are comments (skip); `p min <nodes> <arcs>` declares the problem size; `n <id> <supply>` lines (1-indexed node IDs) declare node supplies (positive = source, negative = sink); `a <u> <v> <low> <cap> <cost>` declares an arc with lower bound `low`, upper bound `cap`, and cost. Reject any nonzero `low` with an error (the spec explicitly does not support general lower bounds). Convert node IDs to 0-indexed internally.",
+    "For this parser assume exactly one positive-supply node and exactly one negative-supply node with supplies summing to zero; source := the positive node, sink := the negative node, demand := uint256 of the positive supply. Return a descriptive error if zero or multiple supply nodes are found.",
+    "Capacities parse as uint64 decimal strings (DIMACS integer fixtures never exceed this for the test data we bundle); build `*uint256.Int` via `uint256.NewInt(val)`.",
+    "Costs parse as int64 decimal via strconv.ParseInt.",
+    "Create testdata/dimacs/tiny.min: a hand-crafted DIMACS instance with 4 nodes, source=1, sink=4, demand=3, arcs (1->2 cost 1 cap 3), (1->3 cost 2 cap 2), (2->4 cost 1 cap 3), (3->4 cost 1 cap 2). Include a `c` comment line describing the instance.",
+    "Create testdata/dimacs/expected.json: `{\"tiny.min\": {\"totalCost\": 8, \"totalFlow\": \"3\"}}`. Comment at top of dimacs_test.go explains: fixture expected cost was hand-verified (ship 3 units from 1 to 4; optimal routes 3 through 1->2->4 at unit cost 1+1 = 2 per unit, so total = 6). Re-verify: 3 units via cheapest path 1->2->4 at cost 2 per unit = 6. Update expected.json to `{\"tiny.min\": {\"totalCost\": 6, \"totalFlow\": \"3\"}}` based on this calculation.",
+    "Implement `func loadDIMACSFixture(t *testing.T, name string) *dimacsProblem` that opens `testdata/dimacs/<name>` and calls the parser; t.Fatalf on any error.",
+    "Write TestDIMACSParserTiny that loads tiny.min and asserts N==4, Source==0, Sink==3, Demand.Uint64()==3, len(Arcs)==4, Arcs[0] == Arc{From:0, To:1, Cost:1, Capacity: uint256 of 3} (compare fields individually). Write TestDIMACSParserRejectsLowerBound that feeds `p min 2 1\\na 1 2 1 10 5` through a strings.NewReader and asserts the error mentions lower bound."
+  ],
+  "acceptance_criteria": [
+    "testdata/dimacs/tiny.min exists and parses without error.",
+    "testdata/dimacs/expected.json lists tiny.min with totalCost 6 and totalFlow \"3\".",
+    "parseDIMACSMinCostFlow rejects nonzero lower bounds with an explicit error.",
+    "Both tests pass.",
+    "`go build ./...` and `go test ./...` succeed.",
+    "`go vet ./...` reports no issues."
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "id": "mcf-dimacs-benchmark",
+  "description": "Add a Go benchmark that loads the bundled DIMACS fixture, runs Solve, and asserts the result against testdata/dimacs/expected.json.",
+  "category": "test",
+  "priority": 1,
+  "prerequisites": ["mcf-solve-entry-point", "mcf-dimacs-parser", "mcf-check-solution-helper"],
+  "commit": "test: add DIMACS benchmark harness against bundled fixture",
+  "steps": [
+    "Create dimacs_bench_test.go in the repo root (SPDX BSL-1.0, package mcf).",
+    "Import `context`, `encoding/json`, `os`, `testing`, `github.com/holiman/uint256`.",
+    "Define an unexported struct `type dimacsExpected struct { TotalCost int64 `json:\"totalCost\"`; TotalFlow string `json:\"totalFlow\"` }` and a helper `func loadDIMACSExpected(t testing.TB) map[string]dimacsExpected` that reads testdata/dimacs/expected.json and unmarshals it; use t.Fatalf on error.",
+    "Write `func BenchmarkDIMACS_Tiny(b *testing.B)`. Load the bundled tiny.min fixture via loadDIMACSFixture (from 03e), load expected.json via loadDIMACSExpected, and reset the benchmark timer. Inside the `for i := 0; i < b.N; i++` loop, clone the Arcs slice (so in-place Flow writes from one iteration don't pollute the next — preallocate a fresh `Flow = new(uint256.Int)` for each arc before each Solve), call Solve, and `b.Fatal` if err != nil.",
+    "Write `func TestDIMACS_TinyFixtureMatchesExpected(t *testing.T)` as a regular test (not a benchmark) that: loads the fixture, runs Solve once, asserts err == nil, asserts res.TotalCost == expected.TotalCost (from expected.json), and asserts res.TotalFlow equals the uint256 parsed from expected.TotalFlow string via `new(uint256.Int).SetFromDecimal(expected.TotalFlow)`. Call checkSolution afterwards.",
+    "Document in a top-of-file comment that broader DIMACS coverage (NETGEN, GRIDGEN, GOTO, GRIDGRAPH, ROAD, VISION families) and cross-validation against LEMON's `network_simplex` binary output are deliberately out of scope here and are tracked as a follow-up task; this file ships with the single hand-verified tiny.min fixture."
+  ],
+  "acceptance_criteria": [
+    "dimacs_bench_test.go exists and defines both BenchmarkDIMACS_Tiny and TestDIMACS_TinyFixtureMatchesExpected.",
+    "TestDIMACS_TinyFixtureMatchesExpected asserts TotalCost and TotalFlow match expected.json and invokes checkSolution.",
+    "BenchmarkDIMACS_Tiny runs without allocating fresh Arcs inside the timed loop other than the required fresh Flow values, and completes without error.",
+    "`go build ./...` succeeds, `go test ./...` passes the test, and `go test -bench=DIMACS -run=^$ ./...` completes at least one iteration without error.",
+    "`go vet ./...` reports no issues."
+  ]
+}
