@@ -1,0 +1,5 @@
+module github.com/branched-services/go-mcf
+
+go 1.22.3
+
+require github.com/holiman/uint256 v1.3.2
