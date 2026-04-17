@@ -1,0 +1,42 @@
+# golangci-lint configuration for go-mcf.
+#
+# Scope note: the ported LEMON Network Simplex is intentionally dense, so
+# complexity linters (cyclop, funlen, gocognit) are disabled — they would
+# fight every solver function. gosec is on globally; any necessary
+# exceptions are scoped inline per-site.
+
+run:
+  timeout: 5m
+  tests: true
+
+linters:
+  disable-all: true
+  enable:
+    - govet
+    - errcheck
+    - staticcheck
+    - ineffassign
+    - unused
+    - gofmt
+    - goimports
+    - revive
+    - gocritic
+    - misspell
+    - unconvert
+    - unparam
+    - bodyclose
+    - gosec
+
+linters-settings:
+  goimports:
+    local-prefixes: github.com/branched-services/go-mcf
+  revive:
+    rules:
+      - name: exported
+      - name: var-naming
+      - name: package-comments
+      - name: indent-error-flow
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
