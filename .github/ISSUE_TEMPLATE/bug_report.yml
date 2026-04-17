@@ -1,0 +1,74 @@
+name: Bug report
+description: Report a correctness or solver behaviour issue in go-mcf.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for filing a bug. For **security vulnerabilities**, use
+        [GitHub Security Advisories](https://github.com/branched-services/go-mcf/security/advisories/new)
+        instead of this form.
+
+  - type: input
+    id: version
+    attributes:
+      label: go-mcf version or commit
+      description: Tag, pseudo-version, or commit SHA you are using.
+      placeholder: v0.1.0 or commit abcdef1
+    validations:
+      required: true
+
+  - type: input
+    id: go-version
+    attributes:
+      label: Go version
+      description: Output of `go version`.
+      placeholder: go version go1.23.0 linux/amd64
+    validations:
+      required: true
+
+  - type: input
+    id: os-arch
+    attributes:
+      label: OS / arch
+      placeholder: linux/amd64
+    validations:
+      required: true
+
+  - type: textarea
+    id: inputs
+    attributes:
+      label: Solve inputs
+      description: Values passed to `Solve` — `n`, `source`, `sink`, `demand`, and a representative Arc slice.
+      render: go
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Minimal reproducer
+      description: Smallest Go snippet or graph description that reproduces the issue.
+      render: go
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected result
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual result
+      description: Include the `Result` fields and/or the error returned.
+    validations:
+      required: true
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Additional context

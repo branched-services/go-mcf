@@ -1,0 +1,5 @@
+# Default owners for everything in the repo.
+# TODO: swap to @branched-services/maintainers once that team exists
+# and has write access to this repo. GitHub silently ignores CODEOWNERS
+# entries for teams that don't exist or lack access.
+* @johnayoung

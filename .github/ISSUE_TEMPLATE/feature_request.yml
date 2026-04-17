@@ -1,0 +1,38 @@
+name: Feature request
+description: Propose a new feature or enhancement for go-mcf.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        go-mcf has intentionally narrow scope: min-cost flow with
+        `*uint256.Int` flows/capacities and `int64` costs, targeting DeFi
+        use cases. Proposals outside that scope are unlikely to land.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem statement
+      description: What problem are you trying to solve? Who hits it?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Scope confirmation
+      options:
+        - label: This proposal fits the DeFi / uint256 min-cost-flow scope of go-mcf.
+          required: true
