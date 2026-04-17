@@ -46,6 +46,9 @@ type solver struct {
 	deltaFirst  *uint256.Int
 	deltaSecond *uint256.Int
 	scratch     *uint256.Int
+
+	childHead []int
+	childNext []int
 }
 
 func newSolver(arcs []Arc, n, source, sink int, demand *uint256.Int) *solver {
@@ -72,6 +75,8 @@ func newSolver(arcs []Arc, n, source, sink int, demand *uint256.Int) *solver {
 		deltaFirst:  new(uint256.Int),
 		deltaSecond: new(uint256.Int),
 		scratch:     new(uint256.Int),
+		childHead:   make([]int, total),
+		childNext:   make([]int, total),
 	}
 
 	totalArcs := len(arcs) + n
