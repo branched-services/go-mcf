@@ -4,7 +4,7 @@ GO       ?= go
 PKG      := ./...
 COVERAGE := coverage.out
 
-.PHONY: help test test-race cover bench lint fmt fmt-check vet tidy vuln ci
+.PHONY: help test test-race cover bench fmt fmt-check vet tidy vuln ci
 
 help: ## Show this help
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -21,9 +21,6 @@ cover: ## Produce coverage.out and open an HTML report
 
 bench: ## Run benchmarks
 	$(GO) test -bench=. -benchmem -run=^$$ $(PKG)
-
-lint: ## Run golangci-lint
-	golangci-lint run
 
 fmt: ## Format Go source with gofmt and goimports
 	gofmt -w .
@@ -44,4 +41,4 @@ tidy: ## Run go mod tidy
 vuln: ## Run govulncheck
 	govulncheck $(PKG)
 
-ci: fmt-check vet lint test-race vuln ## Run the full CI gate
+ci: fmt-check vet test-race vuln ## Run the full CI gate

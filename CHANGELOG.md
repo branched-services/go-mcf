@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- OSS scaffolding: CI, linting, community health files, issue/PR templates,
+- OSS scaffolding: CI, community health files, issue/PR templates,
   godoc examples, contributor documentation.
 
 ## [0.1.0] - 2026-04-17

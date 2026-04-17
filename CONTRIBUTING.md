@@ -22,7 +22,7 @@ preserve that scope are welcome.
    ```
    make ci
    ```
-   This runs `go vet`, `golangci-lint`, `go test -race`, and `govulncheck`.
+   This runs `gofmt -l`, `go vet`, `go test -race`, and `govulncheck`.
 3. Update `CHANGELOG.md` under `## [Unreleased]`.
 4. Open a PR. Fill in the template. Link any related issue.
 
@@ -42,7 +42,6 @@ chore(repo): bump go directive to 1.23
 Install once:
 
 ```
-go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
 go install golang.org/x/vuln/cmd/govulncheck@latest
 go install golang.org/x/tools/cmd/goimports@latest
 ```

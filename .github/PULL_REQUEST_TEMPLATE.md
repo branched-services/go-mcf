@@ -14,7 +14,7 @@
 ## Checklist
 
 - [ ] Tests pass (`make test-race`)
-- [ ] `make lint` is clean for the changes in this PR
+- [ ] `make ci` is clean for the changes in this PR
 - [ ] `CHANGELOG.md` updated under `## [Unreleased]`
 - [ ] New Go files start with `// SPDX-License-Identifier: BSL-1.0`
 - [ ] LEMON-derived code is attributed in `NOTICE`
