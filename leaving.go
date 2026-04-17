@@ -4,86 +4,65 @@ package mcf
 
 import "github.com/holiman/uint256"
 
-// findLeavingArc walks the cycle induced by the entering arc to find the
-// bottleneck (minimum-residual) arc that must leave the basis. It returns:
-//   - leaving:       index of the arc that leaves the basis
-//   - bottleneck:    pointer to s.bottleneck (caller treats as read-only)
-//   - deltaDirFirst: true if the bottleneck was found on the source-side walk
-//
-// The algorithm follows LEMON 1.3.1's findLeavingArc with the strongly-feasible
-// tree tie-breaking rule.
-func (s *solverState) findLeavingArc(entering int) (leaving int, bottleneck *uint256.Int, deltaDirFirst bool) {
-	u := s.source[entering]
-	v := s.target[entering]
-	j := s.findJoinNode(u, v)
-
-	// scratch is a stack-local uint256 used to compute residuals without
-	// allocating. We reuse it across both walks.
-	var scratch uint256.Int
-
-	// ── Initialize with the entering arc's residual ─────────────────────
-	if s.state[entering] == stateLower {
-		// Pushing forward (u->v): residual = capacity - flow.
-		s.bottleneck.Sub(s.capacity[entering], s.flow[entering])
+func (s *solver) findLeaving(enterArc, join int) (int, *uint256.Int, *uint256.Int) {
+	a := s.arc(enterArc)
+	var first, second int
+	if s.state[enterArc] == stateLower {
+		first, second = a.From, a.To
 	} else {
-		// stateUpper, pushing backward (v->u): residual = flow.
-		s.bottleneck.Set(s.flow[entering])
+		first, second = a.To, a.From
 	}
-	leaving = entering
-	deltaDirFirst = true
 
-	// ── First walk: source (u) up to join node (j) ──────────────────────
-	// Residual in the direction of cycle flow:
-	//   dirUp  (arc aligned with cycle): capacity - flow
-	//   dirDown (arc opposes cycle):     flow
-	for cur := u; cur != j; cur = s.parent[cur] {
-		a := s.predArc[cur]
-		if s.dirNode[cur] == dirUp {
-			scratch.Sub(s.capacity[a], s.flow[a])
+	s.deltaFirst.SetAllOne()
+	s.deltaSecond.SetAllOne()
+
+	if s.state[enterArc] == stateLower {
+		s.bottleneck.Sub(a.Capacity, a.Flow)
+	} else {
+		s.bottleneck.Set(a.Flow)
+	}
+	leavingArc := enterArc
+
+	for u := first; u != join; u = s.parent[u] {
+		e := s.predArc[u]
+		ea := s.arc(e)
+		if s.direction[u] == directionUp {
+			s.scratch.Sub(ea.Capacity, ea.Flow)
 		} else {
-			scratch.Set(s.flow[a])
+			s.scratch.Set(ea.Flow)
 		}
-		if scratch.Lt(s.bottleneck) {
-			s.bottleneck.Set(&scratch)
-			leaving = a
-			deltaDirFirst = true
+		if s.scratch.Cmp(s.deltaFirst) <= 0 {
+			s.deltaFirst.Set(s.scratch)
+		}
+		if s.scratch.Lt(s.bottleneck) {
+			s.bottleneck.Set(s.scratch)
+			leavingArc = e
 		}
 	}
 
-	// ── Second walk: target (v) up to join node (j) ─────────────────────
-	// Sign convention flips on this walk:
-	//   dirUp:   flow
-	//   dirDown: capacity - flow
-	//
-	// ┌─────────────────────────────────────────────────────────────────┐
-	// │ STRONGLY-FEASIBLE TIE-BREAK — DO NOT REMOVE                   │
-	// │                                                                │
-	// │ When the second-walk residual EQUALS the current bottleneck,   │
-	// │ we REPLACE the running choice with the second-walk arc. This   │
-	// │ is the strongly-feasible-tree tie-breaking rule from LEMON.    │
-	// │                                                                │
-	// │ This tie-break is NOT optional. It is the termination proof    │
-	// │ for degenerate pivots in the Network Simplex algorithm.        │
-	// │ Bland's rule alone is insufficient to guarantee finite         │
-	// │ termination under degeneracy; the strongly-feasible spanning   │
-	// │ tree property is required. Future maintainers must not delete  │
-	// │ this as 'redundant' — removing it risks infinite cycling on    │
-	// │ degenerate instances.                                          │
-	// └─────────────────────────────────────────────────────────────────┘
-	for cur := v; cur != j; cur = s.parent[cur] {
-		a := s.predArc[cur]
-		if s.dirNode[cur] == dirUp {
-			scratch.Set(s.flow[a])
+	// This tie-break maintains the strongly-feasible-tree invariant.
+	// Do not remove: Bland's rule alone cannot prevent cycling in
+	// degenerate pivots. The <= comparison ensures that ties are broken
+	// in favor of the arc closest to the join node on this (second) side,
+	// which is the side opposite the entering arc's flow orientation.
+	// This is the real anti-cycling mechanism for the Network Simplex
+	// algorithm under degeneracy.
+	for u := second; u != join; u = s.parent[u] {
+		e := s.predArc[u]
+		ea := s.arc(e)
+		if s.direction[u] == directionUp {
+			s.scratch.Set(ea.Flow)
 		} else {
-			scratch.Sub(s.capacity[a], s.flow[a])
+			s.scratch.Sub(ea.Capacity, ea.Flow)
 		}
-		// <= : ties go to the second walk (strongly-feasible tie-break).
-		if scratch.Lt(s.bottleneck) || scratch.Eq(s.bottleneck) {
-			s.bottleneck.Set(&scratch)
-			leaving = a
-			deltaDirFirst = false
+		if s.scratch.Cmp(s.deltaSecond) <= 0 {
+			s.deltaSecond.Set(s.scratch)
+		}
+		if s.scratch.Cmp(s.bottleneck) <= 0 {
+			s.bottleneck.Set(s.scratch)
+			leavingArc = e
 		}
 	}
 
-	return leaving, s.bottleneck, deltaDirFirst
+	return leavingArc, s.deltaFirst, s.deltaSecond
 }

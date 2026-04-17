@@ -41,31 +41,37 @@ type solver struct {
 	blockSize int
 	nextBlock int
 
-	bottleneck *uint256.Int
-	tmpFlow    *uint256.Int
+	bottleneck  *uint256.Int
+	tmpFlow     *uint256.Int
+	deltaFirst  *uint256.Int
+	deltaSecond *uint256.Int
+	scratch     *uint256.Int
 }
 
 func newSolver(arcs []Arc, n, source, sink int, demand *uint256.Int) *solver {
 	total := n + 1
 	s := &solver{
-		n:          n,
-		source:     source,
-		sink:       sink,
-		demand:     demand,
-		arcs:       arcs,
-		artArcs:    make([]Arc, 0, n),
-		pi:         make([]int64, total),
-		parent:     make([]int, total),
-		predArc:    make([]int, total),
-		thread:     make([]int, total),
-		revThread:  make([]int, total),
-		succNum:    make([]int, total),
-		lastSucc:   make([]int, total),
-		direction:  make([]int, total),
-		state:      make([]int, len(arcs)+n),
-		M:          math.MaxInt64 / (8 * int64(n+1)),
-		bottleneck: new(uint256.Int),
-		tmpFlow:    new(uint256.Int),
+		n:           n,
+		source:      source,
+		sink:        sink,
+		demand:      demand,
+		arcs:        arcs,
+		artArcs:     make([]Arc, 0, n),
+		pi:          make([]int64, total),
+		parent:      make([]int, total),
+		predArc:     make([]int, total),
+		thread:      make([]int, total),
+		revThread:   make([]int, total),
+		succNum:     make([]int, total),
+		lastSucc:    make([]int, total),
+		direction:   make([]int, total),
+		state:       make([]int, len(arcs)+n),
+		M:           math.MaxInt64 / (8 * int64(n+1)),
+		bottleneck:  new(uint256.Int),
+		tmpFlow:     new(uint256.Int),
+		deltaFirst:  new(uint256.Int),
+		deltaSecond: new(uint256.Int),
+		scratch:     new(uint256.Int),
 	}
 
 	totalArcs := len(arcs) + n
