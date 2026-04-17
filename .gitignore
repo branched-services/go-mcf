@@ -1,1 +1,17 @@
 logs/
+
+# Build artifacts
+/dist/
+/bin/
+
+# Test artifacts
+*.out
+coverage.*
+*.test
+*.prof
+
+# Editor / OS
+.DS_Store
+*.swp
+.idea/
+.vscode/
