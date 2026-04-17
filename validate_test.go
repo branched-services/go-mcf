@@ -3,6 +3,8 @@
 package mcf
 
 import (
+	"context"
+	"errors"
 	"math"
 	"strings"
 	"testing"
@@ -10,13 +12,14 @@ import (
 	"github.com/holiman/uint256"
 )
 
-func TestValidateSolveInputs(t *testing.T) {
+func TestValidate(t *testing.T) {
+	one := uint256.NewInt(1)
 	cap10 := uint256.NewInt(10)
-	demand := uint256.NewInt(5)
 
-	validArcs := []Arc{
-		{From: 0, To: 1, Cost: 1, Capacity: cap10},
-		{From: 1, To: 2, Cost: 2, Capacity: cap10},
+	goodArcs := func() []Arc {
+		return []Arc{
+			{From: 0, To: 1, Cost: 5, Capacity: cap10},
+		}
 	}
 
 	tests := []struct {
@@ -26,142 +29,199 @@ func TestValidateSolveInputs(t *testing.T) {
 		source  int
 		sink    int
 		demand  *uint256.Int
-		wantErr string // substring expected in error; empty means no error
+		wantSub string
 	}{
 		{
-			name:   "valid 3-node graph",
-			arcs:   validArcs,
-			n:      3,
-			source: 0,
-			sink:   2,
-			demand: demand,
-		},
-		{
-			name:    "n too small",
-			arcs:    nil,
+			name:    "n less than 2",
+			arcs:    goodArcs(),
 			n:       1,
 			source:  0,
 			sink:    0,
-			demand:  demand,
-			wantErr: "node count",
+			demand:  one,
+			wantSub: "n (1) must be >= 2",
 		},
 		{
-			name:    "source out of range",
-			arcs:    validArcs,
-			n:       3,
-			source:  5,
-			sink:    2,
-			demand:  demand,
-			wantErr: "source",
+			name:    "source negative",
+			arcs:    goodArcs(),
+			n:       2,
+			source:  -1,
+			sink:    1,
+			demand:  one,
+			wantSub: "source (-1) out of range",
 		},
 		{
-			name:    "sink out of range",
-			arcs:    validArcs,
-			n:       3,
+			name:    "source too large",
+			arcs:    goodArcs(),
+			n:       2,
+			source:  2,
+			sink:    1,
+			demand:  one,
+			wantSub: "source (2) out of range",
+		},
+		{
+			name:    "sink negative",
+			arcs:    goodArcs(),
+			n:       2,
 			source:  0,
 			sink:    -1,
-			demand:  demand,
-			wantErr: "sink",
+			demand:  one,
+			wantSub: "sink (-1) out of range",
+		},
+		{
+			name:    "sink too large",
+			arcs:    goodArcs(),
+			n:       2,
+			source:  0,
+			sink:    5,
+			demand:  one,
+			wantSub: "sink (5) out of range",
 		},
 		{
 			name:    "source equals sink",
-			arcs:    validArcs,
-			n:       3,
+			arcs:    goodArcs(),
+			n:       2,
 			source:  1,
 			sink:    1,
-			demand:  demand,
-			wantErr: "source and sink",
+			demand:  one,
+			wantSub: "source (1) == sink (1)",
 		},
 		{
-			name:    "nil demand",
-			arcs:    validArcs,
-			n:       3,
+			name:    "demand nil",
+			arcs:    goodArcs(),
+			n:       2,
 			source:  0,
-			sink:    2,
+			sink:    1,
 			demand:  nil,
-			wantErr: "demand",
+			wantSub: "demand is nil",
 		},
 		{
-			name:    "zero demand",
-			arcs:    validArcs,
-			n:       3,
+			name:    "demand zero",
+			arcs:    goodArcs(),
+			n:       2,
 			source:  0,
-			sink:    2,
+			sink:    1,
 			demand:  uint256.NewInt(0),
-			wantErr: "demand",
+			wantSub: "demand is zero",
 		},
 		{
 			name: "arc From out of range",
 			arcs: []Arc{
-				{From: 9, To: 1, Cost: 1, Capacity: cap10},
+				{From: 7, To: 1, Cost: 1, Capacity: cap10},
 			},
-			n:       3,
+			n:       4,
 			source:  0,
-			sink:    2,
-			demand:  demand,
-			wantErr: "From",
+			sink:    1,
+			demand:  one,
+			wantSub: "arcs[0].From (7) out of range [0,4)",
 		},
 		{
 			name: "arc To out of range",
 			arcs: []Arc{
-				{From: 0, To: 99, Cost: 1, Capacity: cap10},
+				{From: 0, To: 9, Cost: 1, Capacity: cap10},
 			},
-			n:       3,
+			n:       4,
 			source:  0,
-			sink:    2,
-			demand:  demand,
-			wantErr: "To",
+			sink:    1,
+			demand:  one,
+			wantSub: "arcs[0].To (9) out of range [0,4)",
 		},
 		{
 			name: "self-loop",
 			arcs: []Arc{
-				{From: 1, To: 1, Cost: 1, Capacity: cap10},
+				{From: 2, To: 2, Cost: 1, Capacity: cap10},
 			},
-			n:       3,
+			n:       4,
 			source:  0,
-			sink:    2,
-			demand:  demand,
-			wantErr: "self-loop",
+			sink:    1,
+			demand:  one,
+			wantSub: "self-loop (2 -> 2)",
 		},
 		{
-			name: "nil capacity",
+			name: "nil Capacity",
 			arcs: []Arc{
 				{From: 0, To: 1, Cost: 1, Capacity: nil},
 			},
-			n:       3,
+			n:       2,
 			source:  0,
-			sink:    2,
-			demand:  demand,
-			wantErr: "capacity",
+			sink:    1,
+			demand:  one,
+			wantSub: "arcs[0].Capacity is nil",
 		},
 		{
-			name: "cost exceeds bound",
+			name: "cost overflow boundary fail",
+			arcs: []Arc{
+				{From: 0, To: 1, Cost: math.MaxInt64/8/3 + 1, Capacity: cap10},
+			},
+			n:       2,
+			source:  0,
+			sink:    1,
+			demand:  one,
+			wantSub: "overflows guard",
+		},
+		{
+			name: "cost overflow negative",
+			arcs: []Arc{
+				{From: 0, To: 1, Cost: -(math.MaxInt64/8/3 + 1), Capacity: cap10},
+			},
+			n:       2,
+			source:  0,
+			sink:    1,
+			demand:  one,
+			wantSub: "overflows guard",
+		},
+		{
+			name: "cost overflow MinInt64",
 			arcs: []Arc{
 				{From: 0, To: 1, Cost: math.MinInt64, Capacity: cap10},
 			},
-			n:       3,
+			n:       2,
 			source:  0,
-			sink:    2,
-			demand:  demand,
-			wantErr: "cost",
+			sink:    1,
+			demand:  one,
+			wantSub: "overflows guard",
+		},
+		{
+			name: "cost overflow interior pass",
+			arcs: []Arc{
+				{From: 0, To: 1, Cost: math.MaxInt64/8/3 - 1, Capacity: cap10},
+			},
+			n:       2,
+			source:  0,
+			sink:    1,
+			demand:  one,
+			wantSub: "", // should pass validation
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := validateSolveInputs(tt.arcs, tt.n, tt.source, tt.sink, tt.demand)
-			if tt.wantErr == "" {
-				if err != nil {
-					t.Fatalf("unexpected error: %v", err)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := Solve(context.Background(), tc.arcs, tc.n, tc.source, tc.sink, tc.demand)
+			if tc.wantSub == "" {
+				if err != nil && errors.Is(err, ErrInvalidInput) {
+					t.Fatalf("expected validation to pass, got: %v", err)
 				}
 				return
 			}
 			if err == nil {
-				t.Fatalf("expected error containing %q, got nil", tt.wantErr)
+				t.Fatal("expected error, got nil")
 			}
-			if !strings.Contains(err.Error(), tt.wantErr) {
-				t.Errorf("error %q does not contain %q", err.Error(), tt.wantErr)
+			if !errors.Is(err, ErrInvalidInput) {
+				t.Fatalf("expected errors.Is(err, ErrInvalidInput), got: %v", err)
+			}
+			if !strings.Contains(err.Error(), tc.wantSub) {
+				t.Fatalf("error %q does not contain %q", err.Error(), tc.wantSub)
 			}
 		})
+	}
+}
+
+func TestValidateValidInput(t *testing.T) {
+	arcs := []Arc{
+		{From: 0, To: 1, Cost: 5, Capacity: uint256.NewInt(10)},
+		{From: 1, To: 2, Cost: 3, Capacity: uint256.NewInt(20)},
+	}
+	err := validate(arcs, 3, 0, 2, uint256.NewInt(5))
+	if err != nil {
+		t.Fatalf("expected nil, got: %v", err)
 	}
 }

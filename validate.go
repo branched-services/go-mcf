@@ -3,54 +3,62 @@
 package mcf
 
 import (
-	"errors"
 	"fmt"
+	"math"
 
 	"github.com/holiman/uint256"
 )
 
-// validateSolveInputs checks all preconditions on the inputs to Solve.
-// It returns a descriptive error for the first violation found, or nil.
-func validateSolveInputs(arcs []Arc, n, source, sink int, demand *uint256.Int) error {
+func validate(arcs []Arc, n, source, sink int, demand *uint256.Int) error {
 	if n < 2 {
-		return fmt.Errorf("node count n=%d: %w", n, errTooFewNodes)
+		return fmt.Errorf("mcf: invalid input: n (%d) must be >= 2: %w", n, ErrInvalidInput)
 	}
 	if source < 0 || source >= n {
-		return fmt.Errorf("source index %d out of range [0, %d)", source, n)
+		return fmt.Errorf("mcf: invalid input: source (%d) out of range [0,%d): %w", source, n, ErrInvalidInput)
 	}
 	if sink < 0 || sink >= n {
-		return fmt.Errorf("sink index %d out of range [0, %d)", sink, n)
+		return fmt.Errorf("mcf: invalid input: sink (%d) out of range [0,%d): %w", sink, n, ErrInvalidInput)
 	}
 	if source == sink {
-		return fmt.Errorf("source and sink are the same node %d", source)
+		return fmt.Errorf("mcf: invalid input: source (%d) == sink (%d): %w", source, sink, ErrInvalidInput)
 	}
 	if demand == nil {
-		return errors.New("demand is nil")
+		return fmt.Errorf("mcf: invalid input: demand is nil: %w", ErrInvalidInput)
 	}
 	if demand.IsZero() {
-		return errors.New("demand is zero")
+		return fmt.Errorf("mcf: invalid input: demand is zero: %w", ErrInvalidInput)
 	}
 
+	costBound := math.MaxInt64 / 8
 	for i := range arcs {
 		a := &arcs[i]
 		if a.From < 0 || a.From >= n {
-			return fmt.Errorf("arc %d: From index %d out of range [0, %d)", i, a.From, n)
+			return fmt.Errorf("mcf: invalid input: arcs[%d].From (%d) out of range [0,%d): %w", i, a.From, n, ErrInvalidInput)
 		}
 		if a.To < 0 || a.To >= n {
-			return fmt.Errorf("arc %d: To index %d out of range [0, %d)", i, a.To, n)
+			return fmt.Errorf("mcf: invalid input: arcs[%d].To (%d) out of range [0,%d): %w", i, a.To, n, ErrInvalidInput)
 		}
 		if a.From == a.To {
-			return fmt.Errorf("arc %d: self-loop on node %d", i, a.From)
+			return fmt.Errorf("mcf: invalid input: arcs[%d] is a self-loop (%d -> %d): %w", i, a.From, a.To, ErrInvalidInput)
 		}
 		if a.Capacity == nil {
-			return fmt.Errorf("arc %d: capacity is nil", i)
+			return fmt.Errorf("mcf: invalid input: arcs[%d].Capacity is nil: %w", i, ErrInvalidInput)
 		}
-		if !arcCostWithinBound(a.Cost, n) {
-			return fmt.Errorf("arc %d: cost %d exceeds safe bound for n=%d", i, a.Cost, n)
+		// Check |Cost| * (n+1) < MaxInt64/8 without overflowing.
+		// abs(Cost): handle math.MinInt64 specially since -MinInt64 overflows int64.
+		if a.Cost == math.MinInt64 {
+			return fmt.Errorf("mcf: invalid input: arcs[%d].Cost (%d) overflows guard |cost|*(n+1) < MaxInt64/8: %w", i, a.Cost, ErrInvalidInput)
+		}
+		absCost := a.Cost
+		if absCost < 0 {
+			absCost = -absCost
+		}
+		nPlus1 := int64(n + 1)
+		// Check absCost * nPlus1 < costBound without overflow:
+		// absCost < costBound / nPlus1 (integer division rounds down, so use >=)
+		if nPlus1 > 0 && absCost >= int64(costBound)/nPlus1 {
+			return fmt.Errorf("mcf: invalid input: arcs[%d].Cost (%d) overflows guard |cost|*(n+1) < MaxInt64/8: %w", i, a.Cost, ErrInvalidInput)
 		}
 	}
-
 	return nil
 }
-
-var errTooFewNodes = errors.New("need at least 2 nodes")

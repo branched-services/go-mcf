@@ -55,5 +55,8 @@ var ErrInvalidInput = errors.New("mcf: invalid input")
 // If ctx is cancelled or its deadline expires, Solve returns (Result{}, ctx.Err())
 // with no partial results written to arcs.
 func Solve(ctx context.Context, arcs []Arc, n, source, sink int, demand *uint256.Int) (Result, error) {
+	if err := validate(arcs, n, source, sink, demand); err != nil {
+		return Result{}, err
+	}
 	return Result{}, errors.New("mcf: not implemented")
 }
