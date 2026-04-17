@@ -57,8 +57,13 @@ var ErrInvalidInput = errors.New("mcf: invalid input")
 // If ctx is cancelled or its deadline expires, Solve returns (Result{}, ctx.Err())
 // with no partial results written to arcs.
 func Solve(ctx context.Context, arcs []Arc, n, source, sink int, demand *uint256.Int) (Result, error) {
+	res, _, err := solve(ctx, arcs, n, source, sink, demand)
+	return res, err
+}
+
+func solve(ctx context.Context, arcs []Arc, n, source, sink int, demand *uint256.Int) (Result, *solver, error) {
 	if err := validate(arcs, n, source, sink, demand); err != nil {
-		return Result{}, err
+		return Result{}, nil, err
 	}
 
 	s := newSolver(arcs, n, source, sink, demand)
@@ -66,7 +71,7 @@ func Solve(ctx context.Context, arcs []Arc, n, source, sink int, demand *uint256
 
 	for {
 		if err := ctx.Err(); err != nil {
-			return Result{}, err
+			return Result{}, nil, err
 		}
 
 		enter := s.selectEntering()
@@ -91,13 +96,13 @@ func Solve(ctx context.Context, arcs []Arc, n, source, sink int, demand *uint256
 
 	for i := range s.artArcs {
 		if s.artArcs[i].Flow.Sign() != 0 {
-			return Result{}, ErrInfeasible
+			return Result{}, nil, ErrInfeasible
 		}
 	}
 
 	tf := new(uint256.Int).Set(demand)
 	if !tf.Eq(demand) {
-		return Result{}, fmt.Errorf("mcf: internal error: TotalFlow != demand post-condition violated")
+		return Result{}, nil, fmt.Errorf("mcf: internal error: TotalFlow != demand post-condition violated")
 	}
 
 	var totalCost int64
@@ -130,5 +135,5 @@ func Solve(ctx context.Context, arcs []Arc, n, source, sink int, demand *uint256
 	return Result{
 		TotalFlow: tf,
 		TotalCost: totalCost,
-	}, nil
+	}, s, nil
 }

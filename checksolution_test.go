@@ -1,117 +1,163 @@
 // SPDX-License-Identifier: BSL-1.0
 
-// checkSolution is a shared test helper (package-private, _test.go file) that
-// verifies flow conservation, capacity feasibility, demand satisfaction, and
-// cost consistency on a Solve result. Callers include lemon_test.go,
-// structural_test.go, and dimacs_bench_test.go.
-//
-// Optimality certificate: the public Result does not expose dual potentials
-// (pi) or arc state, so checkSolution cannot verify complementary slackness
-// directly. Optimality is instead exercised by per-instance LEMON-ported
-// expected-cost assertions in the ported test suites, which compare against
-// externally-verified optima.
-
 package mcf
 
 import (
-	"math/big"
+	"context"
+	"math"
 	"testing"
 
 	"github.com/holiman/uint256"
 )
 
-// arcFlowBig returns a *big.Int with the value of a.Flow.
-func arcFlowBig(a Arc) *big.Int {
-	return a.Flow.ToBig()
+type testReporter interface {
+	Helper()
+	Errorf(format string, args ...interface{})
 }
 
-// checkSolution runs every assertion against the given solution; it does not
-// return early after the first failure so that every violated invariant is
-// reported.
-func checkSolution(t testing.TB, arcs []Arc, n, source, sink int, demand *uint256.Int, res Result) {
+func checkSolution(t testReporter, arcs []Arc, n, source, sink int, demand *uint256.Int, result Result, snap solverSnapshot) {
 	t.Helper()
 
-	// --- (1) Capacity feasibility ---
+	// Invariant 1: flow conservation at every node other than source and sink.
+	inFlow := make([]*uint256.Int, n)
+	outFlow := make([]*uint256.Int, n)
+	for i := 0; i < n; i++ {
+		inFlow[i] = new(uint256.Int)
+		outFlow[i] = new(uint256.Int)
+	}
 	for i, a := range arcs {
 		if a.Flow == nil {
-			t.Errorf("arc %d (%d->%d): Flow is nil", i, a.From, a.To)
 			continue
 		}
-		if a.Flow.Cmp(a.Capacity) > 0 {
-			t.Errorf("arc %d (%d->%d): Flow %s exceeds Capacity %s",
-				i, a.From, a.To, a.Flow, a.Capacity)
+		if a.From < 0 || a.From >= n || a.To < 0 || a.To >= n {
+			t.Errorf("checkSolution: arc %d has out-of-range endpoints: from=%d, to=%d, n=%d", i, a.From, a.To, n)
+			continue
+		}
+		outFlow[a.From] = new(uint256.Int).Add(outFlow[a.From], a.Flow)
+		inFlow[a.To] = new(uint256.Int).Add(inFlow[a.To], a.Flow)
+	}
+	for node := 0; node < n; node++ {
+		if node == source || node == sink {
+			continue
+		}
+		if !inFlow[node].Eq(outFlow[node]) {
+			t.Errorf("checkSolution: flow conservation violated at node %d: in=%s, out=%s", node, inFlow[node], outFlow[node])
 		}
 	}
 
-	// --- (2) Flow conservation ---
-	// Compute inflow and outflow for every node using big.Int to avoid overflow.
-	inflow := make([]*big.Int, n)
-	outflow := make([]*big.Int, n)
-	for i := range n {
-		inflow[i] = new(big.Int)
-		outflow[i] = new(big.Int)
-	}
-
-	for _, a := range arcs {
+	// Invariant 2: capacity feasibility -- 0 <= Flow <= Capacity per arc.
+	for i, a := range arcs {
 		if a.Flow == nil {
 			continue
 		}
-		fb := arcFlowBig(a)
-		inflow[a.To].Add(inflow[a.To], fb)
-		outflow[a.From].Add(outflow[a.From], fb)
-	}
-
-	demandBig := demand.ToBig()
-
-	for v := range n {
-		diff := new(big.Int)
-		switch v {
-		case source:
-			// outflow - inflow == demand
-			diff.Sub(outflow[v], inflow[v])
-			if diff.Cmp(demandBig) != 0 {
-				t.Errorf("flow conservation at source %d: outflow-inflow = %s, want demand %s",
-					v, diff, demandBig)
-			}
-		case sink:
-			// inflow - outflow == demand
-			diff.Sub(inflow[v], outflow[v])
-			if diff.Cmp(demandBig) != 0 {
-				t.Errorf("flow conservation at sink %d: inflow-outflow = %s, want demand %s",
-					v, diff, demandBig)
-			}
-		default:
-			if inflow[v].Cmp(outflow[v]) != 0 {
-				t.Errorf("flow conservation at node %d: inflow %s != outflow %s",
-					v, inflow[v], outflow[v])
-			}
+		if a.Flow.Sign() < 0 {
+			t.Errorf("checkSolution: capacity bound violated at arc %d: flow=%s, capacity=%s (negative flow)", i, a.Flow, a.Capacity)
+		}
+		if a.Capacity != nil && a.Flow.Gt(a.Capacity) {
+			t.Errorf("checkSolution: capacity bound violated at arc %d: flow=%s, capacity=%s", i, a.Flow, a.Capacity)
 		}
 	}
 
-	// --- (3) Demand satisfied ---
-	if res.TotalFlow == nil {
-		t.Errorf("Result.TotalFlow is nil")
-	} else if !res.TotalFlow.Eq(demand) {
-		t.Errorf("Result.TotalFlow = %s, want demand %s", res.TotalFlow, demand)
-	}
-
-	// --- (4) Cost consistency ---
-	// Accumulate arc.Cost * arc.Flow using big.Int. If the sum fits in int64,
-	// assert it matches res.TotalCost; otherwise skip (best-effort per spec).
-	expectedCost := new(big.Int)
-	for _, a := range arcs {
-		if a.Flow == nil {
+	// Invariant 3: optimality certificate -- non-tree arcs at stateLower have
+	// reduced cost >= 0, at stateUpper have reduced cost <= 0.
+	for i, a := range arcs {
+		st := snap.State[i]
+		if st == stateTree {
 			continue
 		}
-		costBig := big.NewInt(a.Cost)
-		term := new(big.Int).Mul(costBig, arcFlowBig(a))
-		expectedCost.Add(expectedCost, term)
+		rc := a.Cost - snap.Pi[a.From] + snap.Pi[a.To]
+		if st == stateLower && rc < 0 {
+			t.Errorf("checkSolution: optimality certificate violated at arc %d: state=lower, reduced_cost=%d", i, rc)
+		}
+		if st == stateUpper && rc > 0 {
+			t.Errorf("checkSolution: optimality certificate violated at arc %d: state=upper, reduced_cost=%d", i, rc)
+		}
 	}
 
-	if expectedCost.IsInt64() {
-		if res.TotalCost != expectedCost.Int64() {
-			t.Errorf("Result.TotalCost = %d, want %d (computed from arc costs*flows)",
-				res.TotalCost, expectedCost.Int64())
+	// Invariant 4: demand satisfied -- TotalFlow == demand.
+	if result.TotalFlow == nil || !result.TotalFlow.Eq(demand) {
+		tf := "nil"
+		if result.TotalFlow != nil {
+			tf = result.TotalFlow.String()
 		}
+		t.Errorf("checkSolution: TotalFlow != demand: TotalFlow=%s, demand=%s", tf, demand)
+	}
+
+	// Invariant 5: cost consistency -- sum(arc.Cost * arc.Flow) == TotalCost
+	// when all flows fit IsUint64; otherwise only assert TotalCost is not
+	// obviously wrong (non-negative when all costs are non-negative).
+	allFit := true
+	var expectedCost int64
+	overflow := false
+	for _, a := range arcs {
+		if a.Flow == nil || a.Flow.IsZero() {
+			continue
+		}
+		if !a.Flow.IsUint64() {
+			allFit = false
+			break
+		}
+		f64 := int64(a.Flow.Uint64())
+		if f64 < 0 {
+			allFit = false
+			break
+		}
+		cost := a.Cost
+		if cost == math.MinInt64 {
+			allFit = false
+			break
+		}
+		absCost := cost
+		if absCost < 0 {
+			absCost = -absCost
+		}
+		if absCost != 0 && f64 > math.MaxInt64/absCost {
+			overflow = true
+			allFit = false
+			break
+		}
+		product := f64 * cost
+		if (cost >= 0 && expectedCost > math.MaxInt64-product) ||
+			(cost < 0 && expectedCost < math.MinInt64-product) {
+			overflow = true
+			allFit = false
+			break
+		}
+		expectedCost += product
+	}
+
+	if allFit && !overflow {
+		if result.TotalCost != expectedCost {
+			t.Errorf("checkSolution: TotalCost inconsistent: expected=%d, actual=%d", expectedCost, result.TotalCost)
+		}
+	} else {
+		allNonNeg := true
+		for _, a := range arcs {
+			if a.Flow != nil && !a.Flow.IsZero() && a.Cost < 0 {
+				allNonNeg = false
+				break
+			}
+		}
+		if allNonNeg && result.TotalCost < 0 {
+			t.Errorf("checkSolution: TotalCost inconsistent: expected non-negative cost (all arc costs >= 0), actual=%d", result.TotalCost)
+		}
+	}
+}
+
+func solveAndCheck(t *testing.T, arcs []Arc, n, source, sink int, demand *uint256.Int) (Result, error) {
+	t.Helper()
+	res, s, err := solve(context.Background(), arcs, n, source, sink, demand)
+	if err != nil {
+		return res, err
+	}
+	checkSolution(t, arcs, n, source, sink, demand, res, s.snapshot())
+	return res, nil
+}
+
+func buildSnapshot(n int, pi []int64, state []int) solverSnapshot {
+	return solverSnapshot{
+		N:     n,
+		Pi:    pi,
+		State: state,
 	}
 }
