@@ -114,24 +114,23 @@ func (s *solver) initializeTree() {
 		var a Arc
 		a.Cost = s.M
 
+		a.Capacity = new(uint256.Int).Set(s.demand)
+
 		if i == s.source {
 			a.From = s.source
 			a.To = root
-			a.Capacity = new(uint256.Int).Set(s.demand)
 			a.Flow = new(uint256.Int).Set(s.demand)
 			s.direction[i] = directionUp
 			s.pi[i] = s.M
 		} else if i == s.sink {
 			a.From = root
 			a.To = s.sink
-			a.Capacity = new(uint256.Int).Set(s.demand)
 			a.Flow = new(uint256.Int).Set(s.demand)
 			s.direction[i] = directionDown
 			s.pi[i] = -s.M
 		} else {
 			a.From = i
 			a.To = root
-			a.Capacity = new(uint256.Int)
 			a.Flow = new(uint256.Int)
 			s.direction[i] = directionUp
 			s.pi[i] = s.M

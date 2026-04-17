@@ -5,6 +5,8 @@ package mcf
 import (
 	"context"
 	"errors"
+	"fmt"
+	"math"
 
 	"github.com/holiman/uint256"
 )
@@ -58,5 +60,75 @@ func Solve(ctx context.Context, arcs []Arc, n, source, sink int, demand *uint256
 	if err := validate(arcs, n, source, sink, demand); err != nil {
 		return Result{}, err
 	}
-	return Result{}, errors.New("mcf: not implemented")
+
+	s := newSolver(arcs, n, source, sink, demand)
+	s.initializeTree()
+
+	for {
+		if err := ctx.Err(); err != nil {
+			return Result{}, err
+		}
+
+		enter := s.selectEntering()
+		if enter == -1 {
+			break
+		}
+
+		ea := s.arc(enter)
+		var from, to int
+		if s.state[enter] == stateLower {
+			from, to = ea.From, ea.To
+		} else {
+			from, to = ea.To, ea.From
+		}
+
+		join := s.findJoin(from, to)
+		leaveArc, _, _ := s.findLeaving(enter, join)
+		bottleneck := new(uint256.Int).Set(s.bottleneck)
+
+		s.pivot(enter, leaveArc, join, bottleneck)
+	}
+
+	for i := range s.artArcs {
+		if s.artArcs[i].Flow.Sign() != 0 {
+			return Result{}, ErrInfeasible
+		}
+	}
+
+	tf := new(uint256.Int).Set(demand)
+	if !tf.Eq(demand) {
+		return Result{}, fmt.Errorf("mcf: internal error: TotalFlow != demand post-condition violated")
+	}
+
+	var totalCost int64
+	for i := range arcs {
+		f := arcs[i].Flow
+		if f == nil || f.IsZero() {
+			continue
+		}
+		if f.IsUint64() {
+			f64 := int64(f.Uint64())
+			if f64 >= 0 {
+				cost := arcs[i].Cost
+				if cost != math.MinInt64 {
+					absCost := cost
+					if absCost < 0 {
+						absCost = -absCost
+					}
+					if absCost == 0 || f64 <= math.MaxInt64/absCost {
+						product := f64 * cost
+						if (cost >= 0 && totalCost <= math.MaxInt64-product) ||
+							(cost < 0 && totalCost >= math.MinInt64-product) {
+							totalCost += product
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return Result{
+		TotalFlow: tf,
+		TotalCost: totalCost,
+	}, nil
 }

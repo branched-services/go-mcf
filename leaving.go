@@ -27,9 +27,9 @@ func (s *solver) findLeaving(enterArc, join int) (int, *uint256.Int, *uint256.In
 		e := s.predArc[u]
 		ea := s.arc(e)
 		if s.direction[u] == directionUp {
-			s.scratch.Sub(ea.Capacity, ea.Flow)
-		} else {
 			s.scratch.Set(ea.Flow)
+		} else {
+			s.scratch.Sub(ea.Capacity, ea.Flow)
 		}
 		if s.scratch.Cmp(s.deltaFirst) <= 0 {
 			s.deltaFirst.Set(s.scratch)
@@ -51,9 +51,9 @@ func (s *solver) findLeaving(enterArc, join int) (int, *uint256.Int, *uint256.In
 		e := s.predArc[u]
 		ea := s.arc(e)
 		if s.direction[u] == directionUp {
-			s.scratch.Set(ea.Flow)
-		} else {
 			s.scratch.Sub(ea.Capacity, ea.Flow)
+		} else {
+			s.scratch.Set(ea.Flow)
 		}
 		if s.scratch.Cmp(s.deltaSecond) <= 0 {
 			s.deltaSecond.Set(s.scratch)

@@ -20,15 +20,15 @@ func (s *solver) pushFlow(enterArc, join int, bottleneck *uint256.Int) {
 	for u := first; u != join; u = s.parent[u] {
 		ea := s.arc(s.predArc[u])
 		if s.direction[u] == directionUp {
-			ea.Flow.Add(ea.Flow, bottleneck)
-		} else {
 			ea.Flow.Sub(ea.Flow, bottleneck)
+		} else {
+			ea.Flow.Add(ea.Flow, bottleneck)
 		}
 	}
 
 	for u := second; u != join; u = s.parent[u] {
 		ea := s.arc(s.predArc[u])
-		if s.direction[u] == directionDown {
+		if s.direction[u] == directionUp {
 			ea.Flow.Add(ea.Flow, bottleneck)
 		} else {
 			ea.Flow.Sub(ea.Flow, bottleneck)
@@ -203,7 +203,10 @@ func (s *solver) updatePotentials(enterArc, subtreeRoot int) {
 }
 
 func (s *solver) pivot(enterArc, leaveArc, join int, bottleneck *uint256.Int) {
-	if bottleneck.IsZero() && leaveArc == enterArc {
+	if leaveArc == enterArc {
+		if !bottleneck.IsZero() {
+			s.pushFlow(enterArc, join, bottleneck)
+		}
 		if s.state[enterArc] == stateLower {
 			s.state[enterArc] = stateUpper
 		} else {
