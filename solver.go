@@ -38,6 +38,9 @@ type solver struct {
 
 	M int64
 
+	blockSize int
+	nextBlock int
+
 	bottleneck *uint256.Int
 	tmpFlow    *uint256.Int
 }
@@ -63,6 +66,12 @@ func newSolver(arcs []Arc, n, source, sink int, demand *uint256.Int) *solver {
 		M:          math.MaxInt64 / (8 * int64(n+1)),
 		bottleneck: new(uint256.Int),
 		tmpFlow:    new(uint256.Int),
+	}
+
+	totalArcs := len(arcs) + n
+	s.blockSize = int(math.Ceil(math.Sqrt(float64(totalArcs))))
+	if s.blockSize < 1 {
+		s.blockSize = 1
 	}
 
 	for i := range s.arcs {

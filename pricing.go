@@ -2,47 +2,66 @@
 
 package mcf
 
-// findEnteringArc uses block-search pricing to select the next entering arc.
-//
-// It scans blocks of s.blockSize non-tree arcs starting at s.nextArc,
-// wrapping around [0, s.m). Within each block it tracks the arc with the
-// maximum violation; only arcs with violation > 0 are eligible. After at
-// most ceil(s.m / s.blockSize) blocks (one full pass) it either returns the
-// best arc found or signals optimality with ok == false.
-//
-// The cursor s.nextArc is always advanced so that successive calls rotate
-// through the arc space. No heap allocations.
-func (s *solverState) findEnteringArc() (arc int, ok bool) {
-	blocks := (s.m + s.blockSize - 1) / s.blockSize // ceil(m / blockSize)
+import "math"
 
-	bestArc := -1
+const sentinelPi = math.MaxInt64 / 2
 
-	cursor := s.nextArc
-	for range blocks {
-		blockBest := -1
-		var blockBestViol int64
+func reducedCost(s *solver, arcIdx int) int64 {
+	a := s.arc(arcIdx)
+	return a.Cost - s.pi[a.From] + s.pi[a.To]
+}
 
-		for range s.blockSize {
-			a := cursor % s.m
-			cursor++
-			v := s.violation(a)
-			if v > blockBestViol {
-				blockBestViol = v
-				blockBest = a
+func (s *solver) selectEntering() int {
+	totalArcs := len(s.arcs) + len(s.artArcs)
+	numBlocks := (totalArcs + s.blockSize - 1) / s.blockSize
+
+	for scanned := 0; scanned < numBlocks; scanned++ {
+		b := (s.nextBlock + scanned) % numBlocks
+		lo := b * s.blockSize
+		hi := lo + s.blockSize
+		if hi > totalArcs {
+			hi = totalArcs
+		}
+
+		bestArc := -1
+		bestViolation := int64(0)
+
+		for i := lo; i < hi; i++ {
+			st := s.state[i]
+			if st == stateTree {
+				continue
+			}
+
+			a := s.arc(i)
+			if s.pi[a.From] >= sentinelPi || s.pi[a.From] <= -sentinelPi ||
+				s.pi[a.To] >= sentinelPi || s.pi[a.To] <= -sentinelPi {
+				continue
+			}
+
+			rc := reducedCost(s, i)
+
+			var violation int64
+			switch st {
+			case stateLower:
+				violation = -rc
+			case stateUpper:
+				violation = rc
+			default:
+				continue
+			}
+
+			if violation > bestViolation {
+				bestViolation = violation
+				bestArc = i
 			}
 		}
 
-		// Advance nextArc past the scanned block.
-		s.nextArc = cursor % s.m
-
-		if blockBest >= 0 {
-			bestArc = blockBest
-			break
+		if bestArc >= 0 {
+			s.nextBlock = (b + 1) % numBlocks
+			return bestArc
 		}
 	}
 
-	if bestArc < 0 {
-		return 0, false
-	}
-	return bestArc, true
+	s.nextBlock = 0
+	return -1
 }
